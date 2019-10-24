@@ -25,8 +25,6 @@ class S3 implements FileUploadInterface
     {
         $s3 = new Client($config["access_key_id"], $config["secret_access_key"]);
 
-        // todo: handle exceptions
-
         $uploadedFile = $s3->send($file, $config["bucketname"]);
 
         return $uploadedFile->getPublicUrl();

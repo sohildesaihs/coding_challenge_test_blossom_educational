@@ -43,7 +43,7 @@ class UploadFactory
                 $factory = new Dropbox();
                 break;
             default:
-                throw new \Exception("Unknown upload destination selected.");
+                throw new \Exception("Unknown upload bucket selected.");
                 break;
         }
 

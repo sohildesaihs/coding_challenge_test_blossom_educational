@@ -28,8 +28,6 @@ class FTP implements FileUploadInterface
 
         $ftp = new FTPUploader($file, $host, $user, $password, $folder);
 
-        // todo: handle exceptions
-
         if (!$ftp) {
             throw new \Exception("FTP upload error occurred.");
         }

@@ -22,8 +22,6 @@ class Dropbox implements FileUploadInterface
     {
         $dropbox = new DropboxClient($config["access_key"], $config["secret_token"], $config["container"]);
 
-        // todo: handle exceptions
-
         return $dropbox->upload($file);
     }
 }
