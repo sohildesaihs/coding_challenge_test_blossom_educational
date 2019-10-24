@@ -4,14 +4,11 @@ namespace Blossom\BackendDeveloperTest;
 
 use mysql_xdevapi\Exception;
 use phpDocumentor\Reflection\File;
-use S3Stub\FileObject;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use FTPStub\FTPUploader;
-use S3Stub\Client;
-use DropboxStub\DropboxClient;
 use EncodingStub\Client as EncodeClient;
 use FFMPEGStub\FFMPEG;
+use Blossom\BackendDeveloperTest\UploadFactory;
 
 /**
  * You should implement this class however you want.
@@ -72,12 +69,14 @@ class Application
 
         // upload file
         try {
-            $url = $this->uploadOnServer($file, $request->get("upload"));
+            $bucketType = $request->get("upload");
+            $fileUploadFactory = new UploadFactory($this->_configParams[$bucketType]);
+            $url = $fileUploadFactory->uploadFile($file, $bucketType);
 
             // File encoding validations.
             $formats = null;
             if (!empty($reqFormats = $request->get("formats"))) {
-                $formats = $this->fileEncode($file, $reqFormats, $request->get("upload"));
+                $formats = $this->fileEncode($file, $reqFormats, $request->get("upload"), $fileUploadFactory);
             }
         } catch (\Exception $ex) {
             // file upload exception messages.
@@ -99,7 +98,7 @@ class Application
      * @return array
      * @throws \Exception
      */
-    private function fileEncode($file, $reqFormats, $uploadBucket)
+    private function fileEncode($file, $reqFormats, $uploadBucket, $fileUploadFactory)
     {
         $return = [];
         foreach ($reqFormats as $reqFormat) {
@@ -108,7 +107,7 @@ class Application
                     $mp4Convertor = new FFMPEG();
                     $file = $mp4Convertor->convert($file);
                     // upload again converted file.
-                    $return[$reqFormat] = $this->uploadOnServer($file, $uploadBucket);
+                    $return[$reqFormat] = $fileUploadFactory->uploadFile($file, $uploadBucket);
                     break;
                 case "gif":
                     throw new \Exception("Unsupported file format provided for conversion.");
@@ -122,96 +121,5 @@ class Application
         }
 
         return $return;
-    }
-
-    /**
-     * Validate and filter upload files to relevant storage.
-     *
-     * @param $file FileObject
-     * @param $type string
-     * @return string
-     * @throws \Exception
-     */
-    private function uploadOnServer($file, $bucketType)
-    {
-        $uploadFileUrl = null;
-        switch ($bucketType) {
-            case UploadBuckets::FTP:
-                $uploadFileUrl = $this->uploadOnFtp($file);
-                break;
-            case UploadBuckets::S3:
-                $uploadFileUrl = $this->uploadOnS3($file);
-                break;
-            case UploadBuckets::DROPBOX:
-                $uploadFileUrl = $this->uploadOnDropbox($file);
-                break;
-            default:
-                throw new \Exception("Unknown upload destination selected.");
-                break;
-        }
-
-        return $uploadFileUrl;
-    }
-
-    /**
-     * Upload file on FTP
-     *
-     * @param $file FileObject
-     * @return string
-     * @throws \Exception
-     */
-    private function uploadOnFtp($file)
-    {
-        $ftpParams = $this->_configParams["ftp"];
-        $host = $ftpParams["hostname"];
-        $user = $ftpParams["username"];
-        $password = $ftpParams["password"];
-        $folder = $ftpParams["destination"];
-
-        $ftp = new FTPUploader($file, $host, $user, $password, $folder);
-
-        // todo: handle exceptions
-
-        if (!$ftp) {
-            throw new \Exception("FTP upload error occurred.");
-        }
-
-        return "ftp://$host/$folder/" . $file->getFileName();
-    }
-
-    /**
-     * Upload file on S3 bucket
-     *
-     * @param $file FileObject
-     * @return string
-     * @throws \Exception
-     */
-    private function uploadOnS3($file)
-    {
-        $s3Params = $this->_configParams["s3"];
-        $s3 = new Client($s3Params["access_key_id"], $s3Params["secret_access_key"]);
-
-        // todo: handle exceptions
-
-        $uploadedFile = $s3->send($file, $s3Params["bucketname"]);
-
-        return $uploadedFile->getPublicUrl();
-    }
-
-    /**
-     * Upload file on Dropbox
-     *
-     * @param $file FileObject
-     * @return string
-     * @throws \Exception
-     */
-    private function uploadOnDropbox($file)
-    {
-        $dropboxParams = $this->_configParams["dropbox"];
-        $dropbox = new DropboxClient($dropboxParams["access_key"], $dropboxParams["secret_token"], $dropboxParams["container"]);
-
-        // todo: handle exceptions
-
-        return $dropbox->upload($file);
     }
 }
